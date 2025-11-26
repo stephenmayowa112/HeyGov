@@ -1,6 +1,6 @@
 # HeyGov CRM - Mini CRM Application
 
-A full-stack CRM application built with Vue.js 3, Express.js, SQLite, and OpenAI for intelligent contact management.
+A full-stack CRM application built with Vue.js 3, Express.js, SQLite, and Claude AI for intelligent contact management.
 
 ## 🏗️ Tech Stack
 
@@ -10,7 +10,7 @@ A full-stack CRM application built with Vue.js 3, Express.js, SQLite, and OpenAI
 - **Language**: TypeScript (Strict mode)
 - **Database**: SQLite (local file `dev.db`)
 - **ORM**: Drizzle ORM with better-sqlite3 driver
-- **AI**: OpenAI API (Chat Completions with Tool/Function Calling)
+- **AI**: Claude AI (Anthropic API with Tool Use)
 
 ### Frontend
 - **Framework**: Vue 3 (Composition API with `<script setup>`)
@@ -53,7 +53,7 @@ heygov-crm/
 ### Prerequisites
 - Node.js (v18 or higher)
 - npm or yarn
-- OpenAI API Key
+- Claude API Key (Anthropic)
 
 ### Backend Setup
 
@@ -67,10 +67,10 @@ heygov-crm/
    cp .env.example .env
    ```
 
-3. **Add your OpenAI API key** to `.env`:
+3. **Add your Claude API key** to `.env`:
    ```env
    PORT=3000
-   OPENAI_API_KEY=your_actual_api_key_here
+   CLAUDE_API_KEY=your_claude_api_key_here
    ```
 
 4. **Generate database schema**:

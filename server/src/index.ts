@@ -9,6 +9,11 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Verify environment variables
+console.log('🔑 Environment check:');
+console.log('   PORT:', PORT);
+console.log('   CLAUDE_API_KEY:', process.env.CLAUDE_API_KEY ? '✅ Set' : '❌ Missing');
+
 app.use(cors());
 app.use(express.json());
 

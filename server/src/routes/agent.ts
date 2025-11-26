@@ -7,8 +7,13 @@ import { eq, or, like } from 'drizzle-orm';
 const router = Router();
 
 // Initialize Anthropic (Claude) client
+if (!process.env.CLAUDE_API_KEY) {
+  console.error('❌ CLAUDE_API_KEY is not set in environment variables');
+  console.error('Please add CLAUDE_API_KEY to your .env file');
+}
+
 const anthropic = new Anthropic({
-  apiKey: process.env.CLAUDE_API_KEY,
+  apiKey: process.env.CLAUDE_API_KEY || '',
 });
 
 // Tool definitions for Claude function calling
@@ -205,68 +210,87 @@ router.post('/', async (req: Request, res: Response) => {
     const todayDate = new Date().toISOString().split('T')[0];
     const systemPrompt = `You are a CRM assistant. Today's date is ${todayDate}. Manage contacts intelligently. If the user implies an action (adding/updating), use the upsert tool. If they ask a question, use the search tool. Always summarize what you did in the final response.`;
 
-    // Call OpenAI with function calling
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: prompt },
-      ],
+    // Call Claude with tool use
+    const message = await anthropic.messages.create({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: prompt }],
       tools,
-      tool_choice: 'auto',
     });
 
-    let response = completion.choices[0].message;
-    const toolCalls = response.tool_calls;
+    let finalText = '';
+    const toolsUsed: string[] = [];
 
     // Process tool calls if any
-    if (toolCalls && toolCalls.length > 0) {
-      const toolMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-        { role: 'system', content: systemPrompt },
+    const toolUseBlocks = message.content.filter(
+      (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use'
+    );
+
+    if (toolUseBlocks.length > 0) {
+      // Execute tools and collect results
+      const toolResults: Anthropic.MessageParam[] = [
         { role: 'user', content: prompt },
-        response,
+        { role: 'assistant', content: message.content },
       ];
 
-      // Execute each tool call
-      for (const toolCall of toolCalls) {
-        if (toolCall.type !== 'function') continue;
-        const functionName = toolCall.function.name;
-        const functionArgs = JSON.parse(toolCall.function.arguments);
+      const resultContent: Anthropic.ToolResultBlockParam[] = [];
+
+      for (const toolUse of toolUseBlocks) {
+        toolsUsed.push(toolUse.name);
+        const functionArgs = toolUse.input as any;
 
         let functionResult: string;
 
-        if (functionName === 'upsertContact') {
+        if (toolUse.name === 'upsertContact') {
           functionResult = await upsertContact(functionArgs);
-        } else if (functionName === 'searchContacts') {
+        } else if (toolUse.name === 'searchContacts') {
           functionResult = await searchContacts(functionArgs);
         } else {
           functionResult = JSON.stringify({
             success: false,
-            error: `Unknown function: ${functionName}`,
+            error: `Unknown function: ${toolUse.name}`,
           });
         }
 
-        // Add tool result to messages
-        toolMessages.push({
-          role: 'tool',
-          tool_call_id: toolCall.id,
+        resultContent.push({
+          type: 'tool_result',
+          tool_use_id: toolUse.id,
           content: functionResult,
         });
       }
 
-      // Get final response from GPT after tool execution
-      const finalCompletion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: toolMessages,
+      // Get final response from Claude after tool execution
+      toolResults.push({
+        role: 'user',
+        content: resultContent,
       });
 
-      response = finalCompletion.choices[0].message;
+      const finalMessage = await anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: toolResults,
+        tools,
+      });
+
+      // Extract text response
+      const textBlock = finalMessage.content.find(
+        (block): block is Anthropic.TextBlock => block.type === 'text'
+      );
+      finalText = textBlock?.text || 'Action completed successfully.';
+    } else {
+      // No tool calls, just return the text response
+      const textBlock = message.content.find(
+        (block): block is Anthropic.TextBlock => block.type === 'text'
+      );
+      finalText = textBlock?.text || 'I can help you manage your contacts.';
     }
 
     res.json({
       success: true,
-      response: response.content,
-      toolsUsed: toolCalls?.filter(tc => tc.type === 'function').map((tc) => tc.function.name) || [],
+      response: finalText,
+      toolsUsed,
     });
   } catch (error) {
     console.error('Error in agent endpoint:', error);
