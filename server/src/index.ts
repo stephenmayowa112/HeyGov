@@ -1,10 +1,13 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+
+// Load environment variables FIRST, before any other imports
+dotenv.config();
+
+// Now import routes (after env vars are loaded)
 import contactsRouter from './routes/contacts';
 import agentRouter from './routes/agent';
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;

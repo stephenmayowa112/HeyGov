@@ -6,16 +6,6 @@ import { eq, or, like } from 'drizzle-orm';
 
 const router = Router();
 
-// Initialize Anthropic (Claude) client
-if (!process.env.CLAUDE_API_KEY) {
-  console.error('❌ CLAUDE_API_KEY is not set in environment variables');
-  console.error('Please add CLAUDE_API_KEY to your .env file');
-}
-
-const anthropic = new Anthropic({
-  apiKey: process.env.CLAUDE_API_KEY || '',
-});
-
 // Tool definitions for Claude function calling
 const tools: Anthropic.Tool[] = [
   {
@@ -197,6 +187,12 @@ async function searchContacts(args: { query: string }): Promise<string> {
 // POST / - AI Agent endpoint
 router.post('/', async (req: Request, res: Response) => {
   try {
+    const apiKey = process.env.CLAUDE_API_KEY;
+    if (!apiKey) {
+      throw new Error('CLAUDE_API_KEY is not set in environment variables');
+    }
+    const anthropic = new Anthropic({ apiKey });
+
     const { prompt } = req.body;
 
     if (!prompt || typeof prompt !== 'string') {
@@ -212,7 +208,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Call Claude with tool use
     const message = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-3-haiku-20240307',
       max_tokens: 1024,
       system: systemPrompt,
       messages: [{ role: 'user', content: prompt }],
@@ -267,7 +263,7 @@ router.post('/', async (req: Request, res: Response) => {
       });
 
       const finalMessage = await anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-3-haiku-20240307',
         max_tokens: 1024,
         system: systemPrompt,
         messages: toolResults,
